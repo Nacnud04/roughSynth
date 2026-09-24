@@ -72,25 +72,49 @@ $R$ defines the valid domain of the generated surface. `fractal` automatically a
 ### Surface statistics
 #### **RMS Height**
 RMS height is a function of the **profile length** it is evaluated over, as a longer profile results in a larger RMS height. Therefore it is **not** a function of lag or separation. It is computed as:
+
+
 $$\varepsilon=\sqrt{\frac{1}{n-1}\sum_{i=1}^n\left(z(x_i)-\bar{z}\right)^2}$$
+
+
 Then, for a fractal surface the RMS height scales with profile length following the Hurst exponent. 
+
+
 $$\frac{\varepsilon(L)}{L^H}=\varepsilon_0$$
+
+
 $\varepsilon_0$ describes the RMS height at unit length scale. In the above example this is computed, where the unit length scale is $1\;\mathrm{m}$.
 
 The `fractal` function takes in both $\varepsilon$ and the profile length $L$ (through parameter `baseline`) to compute the RMS height at *pixel scale* which is not necessarily *unit scale*. This is necessary for the output of `fractal` to have the desired RMS height at some desired profile length. 
 
 #### **RMS Deviation / Allan Deviation**
 RMS deviation (also known as Allan deviation) is a function of **lag** (also refered to as separation or point-to-point distance). RMS deviation describes the RMS difference in height for points separated by some lag. This is computed as:
+
+
 $$\nu(\Delta x)=\sqrt{\frac{1}{n}\sum_{i=1}^n\left(z(x_i)-z(x_i+\Delta x)\right)^2}$$
+
+
 The RMS deviation's relationship with the Hurst exponent is similar to that for RMS Height:
+
+
 $$\frac{\nu(\Delta x)}{L^H}=\nu_0$$
+
+
 When controlling the output surface via $\nu$ at some $\Delta x$, the `fractal` function uses the above relationship to find the RMS deviation at *pixel scale* to scale the surface accordingly. 
 
 #### RMS Slope
 RMS slope is simply:
+
+
 $$s_{rms}=\frac{\nu(\Delta x)}{\Delta x}$$
+
+
 As the lag increases, $s_{rms}$ tends to decrease. This leads it to have the following relationship with the Hurst exponent:
+
+
 $$\frac{s_{rms}(\Delta x)}{(\Delta x)^{H-1}}=s_{rms,0}$$
+
+
 Where s_{rms,0} is the value of the RMS slope at 1 unit of lag.
 
 
