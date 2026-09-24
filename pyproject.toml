@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roughSynth"
+version = "0.1"
+dependencies = [
+    "numpy>=0.0.0",
+    "matplotlib>=0.0.0"
+]
+requires-python = ">=3.9"
+authors = [
+    {name = "Duncan Byrne", email = "duncan.byrne@colorado.edu"},
+]
+readme = "README.md"
