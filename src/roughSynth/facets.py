@@ -130,6 +130,7 @@ def export_facets(fxs, fys, fzs, fnxs, fnys, fnzs, fuxs, fuys, fuzs, fvxs, fvys,
 
 
 def export_grid_to_facet(gridX, gridY, fzzs, facet_filename, obj_filename=None):
+    
     n_hat, u_hat, v_hat = gen_normals(gridX, gridY, fzzs)
 
     xs = gridX.ravel()
