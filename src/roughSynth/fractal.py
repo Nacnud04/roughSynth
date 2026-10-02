@@ -38,7 +38,10 @@ def rho(x, y, R, alpha):
     return out, c0, c2
 
 
-def fractal(N, M, R, H, Len, eps=None, nu_0=None, baseline=None):
+def fractal(N, M, R, H, Len, eps=None, nu_0=None, baseline=None, seed=None):
+
+    if seed:
+        np.random.seed(seed)
 
     if R == 1:
         N *= 2
