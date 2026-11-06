@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roughSynth"
-version = "0.1"
+version = "0.2"
 dependencies = [
     "numpy>=0.0.0",
     "matplotlib>=0.0.0"

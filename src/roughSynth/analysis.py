@@ -312,3 +312,4 @@ def plot_surface_stats(output, fit_min=10, fit_max=200, n_hist_bins=10, savefig=
         plt.close()
     else:
         plt.show()
+
