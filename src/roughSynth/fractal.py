@@ -56,7 +56,7 @@ def fractal(N, M, R, H, Len, eps=None, nu_0=None, baseline=None, seed=None):
     ttx, tty = np.meshgrid(tx, ty)
 
     # construct block circulant covariance matrix
-    Rows, _, _ = rho(
+    Rows, _, c2 = rho(
         [ttx, tty], [tx[0], ty[0]],
         R, alpha
     )
@@ -107,6 +107,11 @@ def fractal(N, M, R, H, Len, eps=None, nu_0=None, baseline=None, seed=None):
     field2 = field2[np.ix_(keep_idx, keep_idx)]
     x_sim = tx[keep_idx]
     y_sim = ty[keep_idx]
+
+    # convert to fBm: subtract X_0 and add c2 correction term 
+    xx_sim, yy_sim = np.meshgrid(x_sim, y_sim)
+    field1 = field1 - field1[0, 0] + np.sqrt(2.0 * c2) * (xx_sim * np.random.randn() + yy_sim * np.random.randn())
+    field2 = field2 - field2[0, 0] + np.sqrt(2.0 * c2) * (xx_sim * np.random.randn() + yy_sim * np.random.randn())
 
     dx_phys = Len / N
 
