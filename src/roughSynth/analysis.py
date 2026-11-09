@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def get_rms(field, lags, scl, verbose=False):
 
     rmss = []
@@ -313,3 +314,153 @@ def plot_surface_stats(output, fit_min=10, fit_max=200, n_hist_bins=10, savefig=
     else:
         plt.show()
 
+
+def freq_axes_2d(ny, nx, dy, dx):
+    fy = np.fft.fftshift(np.fft.fftfreq(ny, d=dy))
+    fx = np.fft.fftshift(np.fft.fftfreq(nx, d=dx))
+    return fx, fy
+
+
+def spatial_axes_2d(ny, nx, dy, dx):
+    y = (np.arange(ny) - ny // 2) * dy
+    x = (np.arange(nx) - nx // 2) * dx
+    return x, y
+
+
+
+def ideal_vs_empirical(psd_ideal_db, cov2d_ideal, psd_empir_db, cov2d_empir, dx_phys, dy_phys, savefig=None):
+
+    # frequency and spatial axes
+    fx, fy = freq_axes_2d(cov2d_empir.shape[0], cov2d_empir.shape[1], dx_phys, dy_phys)
+    xlag, ylag = spatial_axes_2d(cov2d_empir.shape[0], cov2d_empir.shape[1], dx_phys, dy_phys)
+
+
+    fig, ax = plt.subplots(3, 2, figsize=(12, 12), constrained_layout=True)
+
+    im0 = ax[0,0].imshow(
+        psd_ideal_db,
+        origin='lower',
+        extent=[fx[0], fx[-1], fy[0], fy[-1]],
+        aspect='auto'
+    )
+    ax[0,0].set_title("Ideal PSD")
+    ax[0,0].set_xlabel("fx [cycles/m]")
+    ax[0,0].set_ylabel("fy [cycles/m]")
+    fig.colorbar(im0, ax=ax[0,0])
+
+    ext_lag = extent=[
+        xlag[0], xlag[-1],
+        ylag[0], ylag[-1]
+    ]
+    im1 = ax[0,1].imshow(
+        cov2d_ideal,
+        origin='lower',
+        extent=ext_lag,
+        aspect='auto'
+    )
+    ax[0,1].set_title("Ideal covariance")
+    ax[0,1].set_xlabel("x lag [m]")
+    ax[0,1].set_ylabel("y lag [m]")
+    fig.colorbar(im1, ax=ax[0,1])
+
+    psd_empir_db[psd_empir_db <= 0] = 0
+    im2 = ax[1,0].imshow(
+        psd_empir_db,
+        origin='lower',
+        extent=[fx[0], fx[-1], fy[0], fy[-1]],
+        aspect='auto'
+    )
+    ax[1,0].set_title("Empirical PSD")
+    ax[1,0].set_xlabel("fx [cycles/m]")
+    ax[1,0].set_ylabel("fy [cycles/m]")
+    fig.colorbar(im2, ax=ax[1,0])
+
+    im3 = ax[1,1].imshow(
+        cov2d_empir,
+        origin='lower',
+        extent=ext_lag,
+        aspect='auto'
+    )
+    ax[1,1].set_title("Empirical covariance")
+    ax[1,1].set_xlabel("x lag [m]")
+    ax[1,1].set_ylabel("y lag [m]")
+    fig.colorbar(im3, ax=ax[1,1])
+
+    psd_residual = psd_empir_db - psd_ideal_db
+    max_residual = np.max(np.abs(psd_residual))
+    im4 = ax[2,0].imshow(
+        psd_residual,
+        origin='lower',
+        extent=[fx[0], fx[-1], fy[0], fy[-1]],
+        aspect='auto', cmap="coolwarm", 
+        vmin=-1 * max_residual, vmax=max_residual
+    )
+    ax[2,0].set_title("Residual PSD (Empirical - Ideal)")
+    ax[2,0].set_xlabel("fx [cycles/m]")
+    ax[2,0].set_ylabel("fy [cycles/m]")
+    fig.colorbar(im4, ax=ax[2,0])
+
+    cov_residual = cov2d_empir - cov2d_ideal
+    max_residual = np.max(np.abs(cov_residual))
+    im4 = ax[2,1].imshow(
+        cov_residual,
+        origin='lower',
+        extent=ext_lag,
+        aspect='auto', cmap="coolwarm",
+        vmin=-1 * max_residual, vmax=max_residual
+    )
+    ax[2,1].set_title("Residual Covariance (Empirical - Ideal)")
+    ax[2,1].set_xlabel("fx [cycles/m]")
+    ax[2,1].set_ylabel("fy [cycles/m]")
+    fig.colorbar(im4, ax=ax[2,1])
+
+    if savefig:
+        plt.savefig(savefig)
+        plt.close()
+    else:
+        plt.show()
+
+
+# radially collapse covariance
+def radial_covariance(cov2d):
+    """
+    Radially average a centered 2D covariance.
+
+    Parameters
+    ----------
+    cov2d : (N,M) ndarray
+        Covariance with zero lag at center.
+
+    Returns
+    -------
+    r : ndarray
+        Radial distances in pixels.
+    C_r : ndarray
+        Radially averaged covariance.
+    counts : ndarray
+        Number of samples contributing to each radius.
+    """
+
+    ny, nx = cov2d.shape
+
+    y = np.arange(ny) - ny // 2
+    x = np.arange(nx) - nx // 2
+
+    X, Y = np.meshgrid(x, y)
+
+    R = np.sqrt(X**2 + Y**2)
+
+    # integer-radius annuli
+    R_int = np.round(R).astype(int)
+
+    max_r = R_int.max()
+
+    C_r = np.zeros(max_r + 1)
+    counts = np.zeros(max_r + 1, dtype=int)
+
+    for r in range(max_r + 1):
+        mask = (R_int == r)
+        counts[r] = mask.sum()
+        C_r[r] = cov2d[mask].mean()
+
+    return np.arange(max_r + 1), C_r, counts

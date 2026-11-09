@@ -86,8 +86,9 @@ def empirical_psd2d(field, dx, dy, window=True, detrend_mean=True):
         U = 1.0
 
     H = np.fft.fft2(h)
-    psd2d = (dx * dy) * (np.abs(H)**2) / (h.size * U)
+    psd2d = (dx * dy) * (np.abs(H)**2) / (h.size * U)  
     psd2d = np.fft.fftshift(psd2d)
+
     return psd2d
 
 
@@ -117,7 +118,8 @@ def covariance_from_empirical_psd2d(psd2d):
     ))
 
 
-def autocovariance2d(field):
+def autocovariance2d_biased(field):
+
     r"""
     Compute properly normalized 2D autocovariance.
 
@@ -141,7 +143,46 @@ def autocovariance2d(field):
     return cov
 
 
+def autocovariance2d_unbiased(field):
+
+    h = field - np.mean(field)
+
+    ny, nx = h.shape
+
+    F = np.fft.fft2(h, s=(2*ny - 1, 2*nx - 1))
+
+    cov = np.real(
+        np.fft.ifft2(np.abs(F)**2)
+    )
+
+    cov = np.fft.fftshift(cov)
+
+    lag_y = np.arange(-(ny - 1), ny)
+    lag_x = np.arange(-(nx - 1), nx)
+
+    overlap_y = ny - np.abs(lag_y)
+    overlap_x = nx - np.abs(lag_x)
+
+    normalization = np.outer(
+        overlap_y,
+        overlap_x
+    )
+
+    cov /= normalization
+
+    return cov[:-1, :-1]
+
+
+def autocovariance2d(field, unbiased=True):
+
+    if unbiased:
+        return autocovariance2d_unbiased(field)
+    else:
+        return autocovariance2d_biased(field)
+
+
 def covariance_from_generator_psd(psd2d):
+
     """
     Convert generator eigenvalue field into covariance.
 
@@ -156,18 +197,6 @@ def covariance_from_generator_psd(psd2d):
     )
 
 
-def freq_axes_2d(ny, nx, dy, dx):
-    fy = np.fft.fftshift(np.fft.fftfreq(ny, d=dy))
-    fx = np.fft.fftshift(np.fft.fftfreq(nx, d=dx))
-    return fx, fy
-
-
-def spatial_axes_2d(ny, nx, dy, dx):
-    y = (np.arange(ny) - ny // 2) * dy
-    x = (np.arange(nx) - nx // 2) * dx
-    return x, y
-
-
 def center_crop(arr, target_shape):
 
     ny, nx = arr.shape
@@ -180,6 +209,50 @@ def center_crop(arr, target_shape):
         y0:y0 + ty,
         x0:x0 + tx
     ]
+
+
+def match_ideal_to_empirical(psd2d_ideal, cov2d_ideal, psd2d_empir, cov2d_empir, f1):
+
+    """
+    Match the ideal PSD to the empirical PSD
+    """
+
+    cy_i = cov2d_ideal.shape[0] // 2
+    cx_i = cov2d_ideal.shape[1] // 2
+
+    target_variance = np.var(f1)
+
+    scale_factor = (
+        target_variance
+        / cov2d_ideal[cy_i, cx_i]
+    )
+
+    cov2d_ideal *= scale_factor
+    psd2d_ideal *= scale_factor
+
+
+    psd2d_ideal = center_crop(
+        np.fft.fftshift(psd2d_ideal),
+        psd2d_empir.shape
+    )
+
+    cov2d_ideal = center_crop(
+        cov2d_ideal,
+        cov2d_empir.shape
+    )
+
+
+    # Match total power between ideal and realization
+    # this results in the structure being visible where edges are lower power and there is a ring
+    # of higher power returns
+    power_scale = (
+        np.sum(psd2d_empir)
+        / np.sum(psd2d_ideal)
+    )
+
+    psd2d_ideal *= power_scale
+
+    return psd2d_ideal, cov2d_ideal
 
 
 def fractal(N, M, R, H, Len, eps=None, nu_0=None, baseline=None, seed=None):
