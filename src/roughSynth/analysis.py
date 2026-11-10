@@ -421,6 +421,36 @@ def ideal_vs_empirical(psd_ideal_db, cov2d_ideal, psd_empir_db, cov2d_empir, dx_
         plt.show()
 
 
+# compute covariance of surface
+def covariance(field):
+
+    # find the center of the field
+    mid_x, mid_y = (np.array(field.shape) / 2).astype(int)
+    
+    # get the center height
+    mid_height = field[mid_x, mid_y]
+
+    # compute the covariance
+    C_h = field * mid_height
+
+    return C_h
+
+
+def structure_height_function(field):
+
+    # find the center of the field
+    mid_x, mid_y = (np.array(field.shape) / 2).astype(int)
+
+    # get the center height
+    mid_height = field[mid_x, mid_y]
+
+    # compute structure height function
+    D_h = (field - mid_height)**2
+
+    return D_h
+
+
+
 # radially collapse covariance
 def radial_covariance(cov2d):
     """
