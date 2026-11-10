@@ -38,9 +38,226 @@ def rho(x, y, R, alpha):
     return out, c0, c2
 
 
+def ideal_psd_from_generator(N, M, R, H, Len):
+    
+    """
+    Compute the ideal power spectral density for a fractal surface
+    """
+    
+    alpha = 2.0 * H
+
+    tx = (np.arange(1, N+1) / N) * R
+    ty = (np.arange(1, M+1) / M) * R
+    ttx, tty = np.meshgrid(tx, ty)
+
+    Rows, _, _ = rho([ttx, tty], [tx[0], ty[0]], R, alpha)
+
+    BlkCirc_row = np.block([
+        [Rows, Rows[:, -2:0:-1]],
+        [Rows[-2:0:-1, :], Rows[-2:0:-1, -2:0:-1]]
+    ])
+
+    lam_raw = np.real(np.fft.fft2(BlkCirc_row)) / (4.0 * (M - 1) * (N - 1))
+    psd2d   = np.maximum(lam_raw, 0.0)
+
+    return psd2d
+
+
+def empirical_psd2d(field, dx, dy, window=True, detrend_mean=True):
+
+    """
+    Compute the psd of a generated field
+    """
+
+    h = field.copy()
+
+    if detrend_mean:
+        h = h - np.mean(h)
+
+    if window:
+        wx = np.hanning(h.shape[1])
+        wy = np.hanning(h.shape[0])
+        W = np.outer(wy, wx)
+
+        # power correction so total power is preserved on average
+        U = np.mean(W**2)
+        h = h * W
+    else:
+        U = 1.0
+
+    H = np.fft.fft2(h)
+    psd2d = (dx * dy) * (np.abs(H)**2) / (h.size * U)  
+    psd2d = np.fft.fftshift(psd2d)
+
+    return psd2d
+
+
+def covariance_from_psd2d(psd2d):
+
+    """
+    Convert from 2D power spectral density to surface covariance. 
+    """
+
+    return np.fft.fftshift(
+        np.real(
+            np.fft.ifft2(psd2d)
+        )
+    )
+
+def covariance_from_empirical_psd2d(psd2d, dx, dy):
+
+    """
+    Convert from 2D power spectral density to surface covariance.
+    Use when the power spectral density is computed empirically. 
+    """
+
+    return np.fft.fftshift(np.real(
+        np.fft.ifft2(
+            np.fft.ifftshift(psd2d)
+        )
+    )) / (dx * dy)
+
+
+def autocovariance2d_biased(field):
+
+    r"""
+    Compute properly normalized 2D autocovariance.
+
+    Returns covariance in the same units as var(field).
+    Therefore:
+
+        autocovariance2d(field)[center]
+            \approx np.var(field)
+    """
+
+    h = field - np.mean(field)
+
+    cov = np.real(
+        np.fft.fftshift(
+            np.fft.ifft2(
+                np.abs(np.fft.fft2(h))**2
+            )
+        )
+    ) / h.size
+
+    return cov
+
+
+def autocovariance2d_unbiased(field):
+
+    h = field - np.mean(field)
+
+    ny, nx = h.shape
+
+    F = np.fft.fft2(h, s=(2*ny - 1, 2*nx - 1))
+
+    cov = np.real(
+        np.fft.ifft2(np.abs(F)**2)
+    )
+
+    cov = np.fft.fftshift(cov)
+
+    lag_y = np.arange(-(ny - 1), ny)
+    lag_x = np.arange(-(nx - 1), nx)
+
+    overlap_y = ny - np.abs(lag_y)
+    overlap_x = nx - np.abs(lag_x)
+
+    normalization = np.outer(
+        overlap_y,
+        overlap_x
+    )
+
+    cov /= normalization
+
+    return cov[:-1, :-1]
+
+
+def autocovariance2d(field, unbiased=True):
+
+    if unbiased:
+        return autocovariance2d_unbiased(field)
+    else:
+        return autocovariance2d_biased(field)
+
+
+def covariance_from_generator_psd(psd2d):
+
+    """
+    Convert generator eigenvalue field into covariance.
+
+    The generator PSD is NOT a physical PSD.
+    It is the circulant embedding eigenvalue field.
+    """
+
+    return np.real(
+        np.fft.fftshift(
+            np.fft.ifft2(psd2d)
+        )
+    )
+
+
+def center_crop(arr, target_shape):
+
+    ny, nx = arr.shape
+    ty, tx = target_shape
+
+    y0 = (ny - ty) // 2
+    x0 = (nx - tx) // 2
+
+    return arr[
+        y0:y0 + ty,
+        x0:x0 + tx
+    ]
+
+
+def match_ideal_to_empirical(psd2d_ideal, cov2d_ideal, psd2d_empir, cov2d_empir, f1):
+
+    """
+    Match the ideal PSD to the empirical PSD
+    """
+
+    cy_i = cov2d_ideal.shape[0] // 2
+    cx_i = cov2d_ideal.shape[1] // 2
+
+    target_variance = np.var(f1)
+
+    scale_factor = (
+        target_variance
+        / cov2d_ideal[cy_i, cx_i]
+    )
+
+    cov2d_ideal *= scale_factor
+    psd2d_ideal *= scale_factor
+
+
+    psd2d_ideal = center_crop(
+        np.fft.fftshift(psd2d_ideal),
+        psd2d_empir.shape
+    )
+
+    cov2d_ideal = center_crop(
+        cov2d_ideal,
+        cov2d_empir.shape
+    )
+
+
+    # Match total power between ideal and realization
+    # this results in the structure being visible where edges are lower power and there is a ring
+    # of higher power returns
+    power_scale = (
+        np.sum(psd2d_empir)
+        / np.sum(psd2d_ideal)
+    )
+
+    psd2d_ideal *= power_scale
+
+    return psd2d_ideal, cov2d_ideal
+
+
 def fractal(N, M, R, H, Len, eps=None, nu_0=None, baseline=None, seed=None):
 
-    if seed:
+    if seed is not None:
         np.random.seed(seed)
 
     if R == 1:
@@ -73,7 +290,8 @@ def fractal(N, M, R, H, Len, eps=None, nu_0=None, baseline=None, seed=None):
         ]
     ])
 
-    # extract eigenvalues of circulant covariance matrix
+    # this is the discrete spectral density / eigenvalue field
+    # of the embedded circulant covariance matrix
     lam_raw = (
         np.real(np.fft.fft2(BlkCirc_row))
         / (4.0 * (M - 1) * (N - 1))
